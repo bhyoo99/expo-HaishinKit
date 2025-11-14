@@ -176,8 +176,12 @@ class ExpoHaishinkitView(context: Context, appContext: AppContext) : ExpoView(co
         // Add connection event listener after setup
         connection?.addEventListener(Event.RTMP_STATUS, this)
 
+        // EXACTLY like Flutter example: attach audio/video at initialization
+        attachAudio()
+        attachCamera()
+
         isInitialized = true
-        Log.d(TAG, "HaishinKit setup completed")
+        Log.d(TAG, "HaishinKit setup completed with devices attached")
     }
 
     // Implement IEventListener interface - EXACTLY following Flutter
@@ -189,20 +193,19 @@ class ExpoHaishinkitView(context: Context, appContext: AppContext) : ExpoView(co
 
         // Create event map for React Native
         val eventMap = mapOf(
-            "type" to event.type,
-            "code" to code,
-            "level" to level,
-            "description" to description
-        ) as Map<String, Any>
+            "type" to (event.type as Any),
+            "code" to (code as Any),
+            "level" to (level as Any),
+            "description" to (description as Any)
+        )
 
         // Dispatch event to React Native
         when (event.type) {
             Event.RTMP_STATUS -> {
                 if (code.startsWith("NetConnection")) {
                     onConnectionStatusChange(eventMap)
-
-                    // Auto-publish logic - NOT in Flutter's handleEvent
-                    // Flutter handles this in the Dart layer
+                    
+                    // Auto-publish for iOS/Android consistency (iOS does this too)
                     if (code == "NetConnection.Connect.Success" && streamName.isNotEmpty() && !ingesting) {
                         Log.d(TAG, "Auto-publishing on connection success")
                         rtmpStream?.publish(streamName)
@@ -233,7 +236,7 @@ class ExpoHaishinkitView(context: Context, appContext: AppContext) : ExpoView(co
         }
     }
 
-    // EXACTLY following Flutter's attachVideo implementation
+    // Following HaishinKit.kt's native attachVideo pattern for smooth switching
     fun attachCamera() {
         val desiredFacing = if (cameraPosition == "front") {
             CameraCharacteristics.LENS_FACING_FRONT
@@ -242,23 +245,21 @@ class ExpoHaishinkitView(context: Context, appContext: AppContext) : ExpoView(co
         }
 
         val cameraId = getCameraId(context, desiredFacing)
+        val cameraSource = if (cameraId != null) {
+            Camera2Source(context, cameraId)
+        } else {
+            Camera2Source(context)
+        }
+
+        // Store old camera for cleanup
+        val oldCamera = this.camera
+        this.camera = cameraSource
 
         CoroutineScope(Dispatchers.Main).launch {
-            // Detach current video source
+            // EXACTLY following Flutter: detach first, then attach
             mixer?.attachVideo(0, null)
-            camera?.close()
-            camera = null
-
-            // Create and attach new camera
-            val cameraSource = if (cameraId != null) {
-                Camera2Source(context, cameraId)
-            } else {
-                Camera2Source(context)
-            }
-
-            camera = cameraSource
             mixer?.attachVideo(0, cameraSource)
-
+            oldCamera?.close()
             Log.d(TAG, "Camera attached: $cameraPosition")
         }
     }
@@ -269,7 +270,7 @@ class ExpoHaishinkitView(context: Context, appContext: AppContext) : ExpoView(co
             return
         }
 
-        // Just re-attach camera with new position
+        // Just re-attach camera with new position - EXACTLY like Flutter
         attachCamera()
     }
 
@@ -297,17 +298,13 @@ class ExpoHaishinkitView(context: Context, appContext: AppContext) : ExpoView(co
 
         Log.d(TAG, "Starting publishing to: $url/$streamName")
 
-        // Attach devices before connecting
-        attachAudio()
-        attachCamera()
-
-        // Connect to RTMP server
+        // EXACTLY like Flutter: just connect (devices already attached in init)
         connection?.connect(url)
     }
 
     fun stopPublishing() {
         Log.d(TAG, "Stopping publishing")
-        rtmpStream?.close()
+        // EXACTLY like Flutter: only close connection, not stream
         connection?.close()
         ingesting = false
     }
