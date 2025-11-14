@@ -60,21 +60,20 @@ class ExpoHaishinkitView: ExpoView {
   private func setupHaishinKit() {
     print("[ExpoHaishinkit] Starting HaishinKit setup")
     
-    // Flutter와 동일한 초기화 순서
+    // Flutter와 100% 동일한 초기화 순서
     Task {
-      // 1. MediaMixer 생성
-      mixer = MediaMixer()
+      // 1. 오디오 세션 설정 (Flutter: audio_session 패키지)
+      setupAudioSession()
+      
+      // 2. MediaMixer 생성
+      mixer = MediaMixer(
+        multiTrackAudioMixingEnabled: false,
+        useManualCapture: true  // iOS 18 버그 때문에 필요
+      )
       print("[ExpoHaishinkit] MediaMixer created")
       
-      // 2. Mixer 시작
-      await mixer?.startRunning()
-      print("[ExpoHaishinkit] MediaMixer started")
-      
-      // 3. Permissions
-      await requestPermissions()
-      
+      // 3. MTHKView 생성 및 설정
       await MainActor.run {
-        // 4. MTHKView 생성 및 설정
         texture = MTHKView(frame: self.bounds)
         guard let texture = texture else { return }
         
@@ -91,22 +90,41 @@ class ExpoHaishinkitView: ExpoView {
         ])
         
         print("[ExpoHaishinkit] MTHKView setup completed")
-        
-        // 5. Mixer에 MTHKView 추가
-        Task {
-          await mixer?.addOutput(texture)
-          print("[ExpoHaishinkit] MTHKView added to mixer")
-          
-          await MainActor.run {
-            self.setupConnection()
-            self.attachDevices()
-          }
-        }
       }
+      
+      // 4. MTHKView를 mixer에 추가
+      if let texture = texture {
+        await mixer?.addOutput(texture)
+        print("[ExpoHaishinkit] MTHKView added to mixer")
+      }
+      
+      // 5. Connection과 Stream 설정 (Flutter: RtmpConnection.create() → RtmpStream.create())
+      await setupConnection()
+      
+      // 6. attachAudio/attachVideo (Flutter: stream.attachAudio() → stream.attachVideo())
+      await attachAudio()
+      await attachCamera()
+      print("[ExpoHaishinkit] Devices attached")
+      
+      // 7. 마지막에 startRunning (useManualCapture 때문에 수동 호출 필요)
+      await mixer?.startRunning()
+      print("[ExpoHaishinkit] Mixer started running - ready!")
+    }
+  }
+  
+  private func setupAudioSession() {
+    // Flutter audio_session 패키지와 동일한 설정
+    do {
+      let session = AVAudioSession.sharedInstance()
+      try session.setCategory(.playAndRecord, options: [.allowBluetooth])
+      try session.setActive(true)
+      print("[ExpoHaishinkit] Audio session configured")
+    } catch {
+      print("[ExpoHaishinkit] Failed to setup audio session: \(error)")
     }
   }
 
-  private func setupConnection() {
+  private func setupConnection() async {
     // Flutter와 동일한 연결 설정
     connection = RTMPConnection()
     guard let connection = connection else {
@@ -122,41 +140,48 @@ class ExpoHaishinkitView: ExpoView {
     }
     print("[ExpoHaishinkit] RTMPStream created")
     
-    // Mixer에 stream 추가
-    Task {
-      await mixer?.addOutput(stream)
-      print("[ExpoHaishinkit] Stream added to mixer")
-    }
+    // Flutter와 동일하게 mixer에 stream 추가
+    await mixer?.addOutput(stream)
+    print("[ExpoHaishinkit] Stream added to mixer")
     
     setupEventListeners()
   }
   
-  private func attachDevices() {
-    Task {
-      // Flutter와 동일한 방식: mixer에 audio/video 연결
-      
-      // Audio device 연결
-      if let audioDevice = AVCaptureDevice.default(for: .audio) {
-        try? await mixer?.attachAudio(audioDevice)
-        print("[ExpoHaishinkit] Audio device attached to mixer")
+  
+  private func attachCamera() async {
+    let videoStatus = AVCaptureDevice.authorizationStatus(for: .video)
+    guard videoStatus == .authorized else {
+      print("[ExpoHaishinkit] ⚠️ Camera permission not granted")
+      return
+    }
+    
+    let position: AVCaptureDevice.Position = camera == "front" ? .front : .back
+    let mirrored = self.isVideoMirrored
+    
+    if let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position) {
+      try? await mixer?.attachVideo(camera, track: 0) { videoUnit in
+        videoUnit.isVideoMirrored = mirrored
       }
-      
-      // Camera 연결 (Flutter의 attachVideo 방식)
-      let position: AVCaptureDevice.Position = camera == "front" ? .front : .back
-      let mirrored = self.isVideoMirrored // 로컬 변수로 캡처
-      
-      if let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position) {
-        try? await mixer?.attachVideo(camera, track: 0) { videoUnit in
-          // 저장된 미러링 상태 적용
-          videoUnit.isVideoMirrored = mirrored
-        }
-        print("[ExpoHaishinkit] Camera device attached to mixer (position: \(self.camera), mirrored: \(mirrored))")
-      }
+      print("[ExpoHaishinkit] Camera device attached to mixer")
+    }
+  }
+  
+  private func attachAudio() async {
+    let audioStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+    if audioStatus == .authorized, let audioDevice = AVCaptureDevice.default(for: .audio) {
+      try? await mixer?.attachAudio(audioDevice)
+      print("[ExpoHaishinkit] Audio device attached to mixer")
     }
   }
   
   // camera prop이 변경될 때 호출
   func updateCamera() {
+    // 초기화가 완료되지 않았으면 무시
+    guard isInitialized, mixer != nil else {
+      print("[ExpoHaishinkit] Ignoring camera update - not initialized yet")
+      return
+    }
+    
     Task {
       let position: AVCaptureDevice.Position = camera == "front" ? .front : .back
       let mirrored = self.isVideoMirrored // 로컬 변수로 캡처
@@ -190,25 +215,6 @@ class ExpoHaishinkitView: ExpoView {
     }
   }
   
-  private func requestPermissions() async {
-    print("[ExpoHaishinkit] Requesting permissions")
-    
-    let cameraStatus = AVCaptureDevice.authorizationStatus(for: .video)
-    if cameraStatus != .authorized {
-      let granted = await AVCaptureDevice.requestAccess(for: .video)
-      print("[ExpoHaishinkit] Camera permission: \(granted)")
-    } else {
-      print("[ExpoHaishinkit] Camera already authorized")
-    }
-    
-    let audioStatus = AVCaptureDevice.authorizationStatus(for: .audio)
-    if audioStatus != .authorized {
-      let granted = await AVCaptureDevice.requestAccess(for: .audio)
-      print("[ExpoHaishinkit] Microphone permission: \(granted)")
-    } else {
-      print("[ExpoHaishinkit] Microphone already authorized")
-    }
-  }
   
   private func setupEventListeners() {
     print("[ExpoHaishinkit] Setting up event listeners")
