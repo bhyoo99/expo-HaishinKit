@@ -12,9 +12,12 @@ export type StreamStatusPayload = {
   description: string;
 };
 
+export type CameraPosition = "front" | "back";
+
 export type ExpoHaishinkitViewProps = {
   url?: string;
   streamName?: string;
+  camera?: CameraPosition; // 기본값: 'back'
   onConnectionStatusChange?: (event: {
     nativeEvent: ConnectionStatusPayload;
   }) => void;

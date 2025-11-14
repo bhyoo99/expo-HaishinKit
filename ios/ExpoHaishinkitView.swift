@@ -15,7 +15,8 @@ class ExpoHaishinkitView: ExpoView {
   
   var url: String = ""
   var streamName: String = ""
-  var isPublishing = false
+  var camera: String = "back"  // 기본값: 후면 카메라
+  var ingesting = false  // Flutter와 동일한 이름 사용
   private var isInitialized = false
   
   required init(appContext: AppContext? = nil) {
@@ -97,10 +98,23 @@ class ExpoHaishinkitView: ExpoView {
       print("[ExpoHaishinkit] Audio device attached")
     }
     
-    if let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
+    // camera prop에 따라 카메라 선택
+    let position: AVCaptureDevice.Position = camera == "front" ? .front : .back
+    if let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position),
        let stream = self.stream {
       stream.attachCamera(camera)
-      print("[ExpoHaishinkit] Camera device attached")
+      print("[ExpoHaishinkit] Camera device attached (position: \(self.camera))")
+    }
+  }
+  
+  // camera prop이 변경될 때 호출
+  func updateCamera() {
+    guard let stream = self.stream else { return }
+    
+    let position: AVCaptureDevice.Position = camera == "front" ? .front : .back
+    if let newCamera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position) {
+      stream.attachCamera(newCamera)
+      print("[ExpoHaishinkit] Camera switched to: \(camera)")
     }
   }
   
@@ -163,16 +177,16 @@ class ExpoHaishinkitView: ExpoView {
     ])
     
     // Flutter 방식: 연결 성공 시 자동으로 publish
-    if code == "NetConnection.Connect.Success" && !streamName.isEmpty && !isPublishing {
+    if code == "NetConnection.Connect.Success" && !streamName.isEmpty && !ingesting {
       print("[ExpoHaishinkit] Auto-publishing on connection success")
       stream?.publish(streamName)
-      isPublishing = true
+      ingesting = true
     } else if code == "NetConnection.Connect.Closed" {
       print("[ExpoHaishinkit] Connection closed event received")
-      isPublishing = false
+      ingesting = false
     } else if code == "NetConnection.Connect.Failed" {
       print("[ExpoHaishinkit] Connection failed: \(data["description"] ?? "")")
-      isPublishing = false
+      ingesting = false
     }
   }
   
@@ -206,13 +220,13 @@ class ExpoHaishinkitView: ExpoView {
     print("[ExpoHaishinkit] startPublishing called")
     print("[ExpoHaishinkit] URL: \(url), Stream name: \(streamName)")
     print("[ExpoHaishinkit] Connection state: \(connection.connected)")
-    print("[ExpoHaishinkit] isPublishing: \(isPublishing)")
+    print("[ExpoHaishinkit] ingesting: \(ingesting)")
     
     // 이미 연결되어 있으면 바로 publish
     if connection.connected {
       print("[ExpoHaishinkit] Already connected, publishing directly")
       stream?.publish(streamName)
-      isPublishing = true
+      ingesting = true
     } else {
       // Flutter 방식: connect만 호출, publish는 연결 성공 이벤트에서 자동으로
       print("[ExpoHaishinkit] Calling connection.connect(\(url))")
@@ -229,15 +243,15 @@ class ExpoHaishinkitView: ExpoView {
   func stopPublishing() {
     print("[ExpoHaishinkit] stopPublishing called")
     print("[ExpoHaishinkit] Current connection state: \(connection?.connected ?? false)")
-    print("[ExpoHaishinkit] Current isPublishing: \(isPublishing)")
+    print("[ExpoHaishinkit] Current ingesting: \(ingesting)")
     
     // Flutter와 완전히 동일하게: connection.close()만 호출
     print("[ExpoHaishinkit] Closing connection")
     connection?.close()
     // stream은 그대로 유지 (프리뷰 계속 보임)
     
-    // 재연결을 위해 isPublishing을 false로 설정
-    isPublishing = false
+    // 재연결을 위해 ingesting을 false로 설정
+    ingesting = false
     
     // 연결 상태 확인
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in

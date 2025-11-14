@@ -20,6 +20,13 @@ public class ExpoHaishinkitModule: Module {
         }
       }
       
+      Prop("camera") { (view: ExpoHaishinkitView, camera: String?) in
+        if let camera = camera, (camera == "front" || camera == "back") {
+          view.camera = camera
+          view.updateCamera()  // 카메라 변경
+        }
+      }
+      
       Events(
         "onConnectionStatusChange",
         "onStreamStatusChange"
