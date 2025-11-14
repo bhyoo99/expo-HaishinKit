@@ -16,27 +16,16 @@ class ExpoHaishinkitView: ExpoView {
   private var connection: RTMPConnection?
   private var stream: RTMPStream?
   private var texture: MTHKView?
-  
+
   let onConnectionStatusChange = ExpoModulesCore.EventDispatcher()
   let onStreamStatusChange = ExpoModulesCore.EventDispatcher()
-  
+
   var url: String = ""
   var streamName: String = ""
   var camera: String = "back"  // 기본값: 후면 카메라
   var ingesting = false  // Flutter와 동일한 이름 사용
   private var isInitialized = false
-  
-  // 카메라별 미러링 상태 저장
-  private var mirrorStates: [String: Bool] = [
-    "front": true,   // 전면 기본값: 미러링 ON
-    "back": false    // 후면 기본값: 미러링 OFF
-  ]
-  
-  // 현재 활성 미러링 상태
-  private var isVideoMirrored: Bool {
-    get { mirrorStates[camera] ?? false }
-    set { mirrorStates[camera] = newValue }
-  }
+  private var isMultiCamSupported = false  // 다중 카메라 지원 여부
   
   // Status subscriptions (Flutter와 동일한 방식)
   private var connectionStatusSubscription: Task<(), Error>?
@@ -155,15 +144,41 @@ class ExpoHaishinkitView: ExpoView {
       print("[ExpoHaishinkit] ⚠️ Camera permission not granted")
       return
     }
-    
-    let position: AVCaptureDevice.Position = camera == "front" ? .front : .back
-    let mirrored = self.isVideoMirrored
-    
-    if let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position) {
-      try? await mixer.attachVideo(camera, track: 0) { videoUnit in
-        videoUnit.isVideoMirrored = mirrored
+
+    // HaishinKit 예제 방식: 다중 카메라 지원 확인
+    isMultiCamSupported = await mixer.isMultiCamSessionEnabled
+
+    if isMultiCamSupported {
+      // 다중 카메라 모드: 두 카메라 모두 attach (검정 화면 방지)
+      if let backCamera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) {
+        try? await mixer.attachVideo(backCamera, track: 0) { videoUnit in
+          videoUnit.isVideoMirrored = false
+        }
       }
-      print("[ExpoHaishinkit] Camera device attached to mixer")
+
+      if let frontCamera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front) {
+        try? await mixer.attachVideo(frontCamera, track: 1) { videoUnit in
+          videoUnit.isVideoMirrored = true
+        }
+      }
+
+      // 초기 카메라에 따라 메인 트랙 설정
+      var videoMixerSettings = await mixer.videoMixerSettings
+      videoMixerSettings.mainTrack = camera == "front" ? 1 : 0
+      await mixer.setVideoMixerSettings(videoMixerSettings)
+
+      print("[ExpoHaishinkit] Multi-camera mode enabled, both cameras attached")
+    } else {
+      // 단일 카메라 모드: 현재 카메라만 attach
+      let position: AVCaptureDevice.Position = camera == "front" ? .front : .back
+      let isFrontCamera = position == .front
+
+      if let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position) {
+        try? await mixer.attachVideo(camera, track: 0) { videoUnit in
+          videoUnit.isVideoMirrored = isFrontCamera
+        }
+        print("[ExpoHaishinkit] Single camera mode, attached \(self.camera) camera")
+      }
     }
   }
   
@@ -182,40 +197,29 @@ class ExpoHaishinkitView: ExpoView {
       print("[ExpoHaishinkit] Ignoring camera update - not initialized yet")
       return
     }
-    
+
     Task {
-      let position: AVCaptureDevice.Position = camera == "front" ? .front : .back
-      let mirrored = self.isVideoMirrored // 로컬 변수로 캡처
-      
-      if let newCamera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position) {
-        try? await mixer.attachVideo(newCamera, track: 0) { videoUnit in
-          // 저장된 미러링 상태 적용
-          videoUnit.isVideoMirrored = mirrored
+      if isMultiCamSupported {
+        // 다중 카메라 모드: 메인 트랙만 전환 (검정 화면 없음!)
+        var videoMixerSettings = await mixer.videoMixerSettings
+        videoMixerSettings.mainTrack = camera == "front" ? 1 : 0
+        await mixer.setVideoMixerSettings(videoMixerSettings)
+
+        print("[ExpoHaishinkit] Switched main track to: \(camera) (track \(videoMixerSettings.mainTrack))")
+      } else {
+        // 단일 카메라 모드: 카메라 재연결 필요
+        let position: AVCaptureDevice.Position = camera == "front" ? .front : .back
+        let isFrontCamera = position == .front
+
+        if let newCamera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position) {
+          try? await mixer.attachVideo(newCamera, track: 0) { videoUnit in
+            videoUnit.isVideoMirrored = isFrontCamera
+          }
+          print("[ExpoHaishinkit] Camera switched to: \(camera) (mirrored: \(isFrontCamera))")
         }
-        print("[ExpoHaishinkit] Camera switched to: \(camera), mirrored: \(mirrored)")
       }
     }
   }
-  
-  // 미러링 토글
-  func toggleMirroring() {
-    Task {
-      // 현재 카메라의 미러링 상태 토글
-      isVideoMirrored.toggle()
-      let mirrored = self.isVideoMirrored // 로컬 변수로 캡처
-      
-      // 현재 카메라에 새로운 미러링 설정 적용
-      let position: AVCaptureDevice.Position = camera == "front" ? .front : .back
-      if let currentCamera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position) {
-        try? await mixer.attachVideo(currentCamera, track: 0) { videoUnit in
-          videoUnit.isVideoMirrored = mirrored
-        }
-      }
-      
-      print("[ExpoHaishinkit] Mirroring toggled to: \(mirrored) for \(camera) camera")
-    }
-  }
-  
   
   private func setupEventListeners() {
     print("[ExpoHaishinkit] Setting up event listeners")

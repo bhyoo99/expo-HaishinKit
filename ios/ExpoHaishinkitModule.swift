@@ -40,10 +40,6 @@ public class ExpoHaishinkitModule: Module {
       AsyncFunction("stopPublishing") { (view: ExpoHaishinkitView) in
         view.stopPublishing()
       }
-      
-      AsyncFunction("toggleMirroring") { (view: ExpoHaishinkitView) in
-        view.toggleMirroring()
-      }
     }
   }
 }

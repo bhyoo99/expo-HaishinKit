@@ -9,7 +9,6 @@ const NativeView: React.ComponentType<ExpoHaishinkitViewProps> =
 export interface ExpoHaishinkitViewRef {
   startPublishing: () => void;
   stopPublishing: () => void;
-  toggleMirroring: () => void;
 }
 
 const ExpoHaishinkitView = React.forwardRef<
@@ -24,9 +23,6 @@ const ExpoHaishinkitView = React.forwardRef<
     },
     stopPublishing: () => {
       nativeRef.current?.stopPublishing();
-    },
-    toggleMirroring: () => {
-      nativeRef.current?.toggleMirroring();
     },
   }));
 
