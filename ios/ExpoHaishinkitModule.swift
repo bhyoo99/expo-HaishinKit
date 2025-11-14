@@ -27,6 +27,14 @@ public class ExpoHaishinkitModule: Module {
         }
       }
       
+      Prop("videoSettings") { (view: ExpoHaishinkitView, settings: [String: Any]?) in
+        view.videoSettingsProp = settings
+      }
+      
+      Prop("audioSettings") { (view: ExpoHaishinkitView, settings: [String: Any]?) in
+        view.audioSettingsProp = settings
+      }
+      
       Events(
         "onConnectionStatusChange",
         "onStreamStatusChange"
@@ -38,8 +46,8 @@ public class ExpoHaishinkitModule: Module {
       }
       
       AsyncFunction("stopPublishing") { (view: ExpoHaishinkitView) in
-        view.stopPublishing()
-      }
+      view.stopPublishing()
+    }
     }
   }
 }

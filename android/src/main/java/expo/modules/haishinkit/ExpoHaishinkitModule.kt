@@ -24,6 +24,18 @@ class ExpoHaishinkitModule : Module() {
                     view.updateCamera()
                 }
             }
+            
+            Prop("videoSettings") { view: ExpoHaishinkitView, settings: Map<String, Any?>? ->
+                if (settings != null) {
+                    view.setVideoSettings(settings)
+                }
+            }
+            
+            Prop("audioSettings") { view: ExpoHaishinkitView, settings: Map<String, Any?>? ->
+                if (settings != null) {
+                    view.setAudioSettings(settings)
+                }
+            }
 
             // Events
             Events(
@@ -36,9 +48,9 @@ class ExpoHaishinkitModule : Module() {
                 view.startPublishing()
             }
 
-            AsyncFunction("stopPublishing") { view: ExpoHaishinkitView ->
-                view.stopPublishing()
-            }
+      AsyncFunction("stopPublishing") { view: ExpoHaishinkitView ->
+        view.stopPublishing()
+      }
         }
     }
 }

@@ -28,6 +28,10 @@ import com.haishinkit.view.StreamView
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.viewevent.EventDispatcher
 import expo.modules.kotlin.views.ExpoView
+import android.media.MediaFormat.KEY_LEVEL
+import android.media.MediaFormat.KEY_PROFILE
+import android.media.MediaCodecInfo
+import com.haishinkit.codec.CodecOption
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -343,4 +347,57 @@ class ExpoHaishinkitView(context: Context, appContext: AppContext) : ExpoView(co
             Log.d(TAG, "Cleanup completed")
         }
     }
+    
+    // Flutter의 setVideoSettings와 동일
+    fun setVideoSettings(settings: Map<String, Any?>) {
+        rtmpStream?.let { stream ->
+            // Width/Height
+            (settings["width"] as? Int)?.let {
+                stream.videoSetting.width = it
+            }
+            (settings["height"] as? Int)?.let {
+                stream.videoSetting.height = it
+            }
+            
+            // Bitrate
+            (settings["bitrate"] as? Int)?.let {
+                stream.videoSetting.bitRate = it
+            }
+            
+            // Frame interval (GOP duration)
+            (settings["frameInterval"] as? Int)?.let {
+                stream.videoSetting.IFrameInterval = it
+            }
+            
+            // Profile level - Flutter와 동일한 문자열 매핑
+            (settings["profileLevel"] as? String)?.let { profileLevelStr ->
+                val profileLevel = ProfileLevel.getProfileLevel(profileLevelStr)
+                if (profileLevel != null) {
+                    val options = mutableListOf<CodecOption>()
+                    options.add(CodecOption(KEY_PROFILE, profileLevel.first))
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        options.add(CodecOption(KEY_LEVEL, profileLevel.second))
+                    }
+                    stream.videoSetting.options = options
+                } else {
+                    // Flutter와 동일: AutoLevel 등 지원하지 않는 값은 무시 (기본값 사용)
+                    Log.d(TAG, "Profile level not supported on Android, using default: $profileLevelStr")
+                }
+            }
+            
+            Log.d(TAG, "Video settings updated: $settings")
+        }
+    }
+    
+    // Flutter의 setAudioSettings와 동일
+    fun setAudioSettings(settings: Map<String, Any?>) {
+        rtmpStream?.let { stream ->
+            (settings["bitrate"] as? Int)?.let {
+                stream.audioSetting.bitRate = it
+            }
+            
+            Log.d(TAG, "Audio settings updated: $settings")
+        }
+    }
+    
 }

@@ -1,6 +1,7 @@
 import ExpoModulesCore
 import HaishinKit
 import AVFoundation
+import VideoToolbox
 import UIKit
 
 // This view will be used as a native component. Make sure to inherit from `ExpoView`
@@ -26,6 +27,27 @@ class ExpoHaishinkitView: ExpoView {
   var ingesting = false  // Flutter와 동일한 이름 사용
   private var isInitialized = false
   private var isMultiCamSupported = false  // 다중 카메라 지원 여부
+  
+  // Props for video/audio settings
+  var videoSettingsProp: [String: Any]? = nil {
+    didSet {
+      if let settings = videoSettingsProp {
+        Task {
+          await setVideoSettings(settings)
+        }
+      }
+    }
+  }
+  
+  var audioSettingsProp: [String: Any]? = nil {
+    didSet {
+      if let settings = audioSettingsProp {
+        Task {
+          await setAudioSettings(settings)
+        }
+      }
+    }
+  }
   
   // Status subscriptions (Flutter와 동일한 방식)
   private var connectionStatusSubscription: Task<(), Error>?
@@ -346,6 +368,52 @@ class ExpoHaishinkitView: ExpoView {
       print("[ExpoHaishinkit] Connection closed")
     }
   }
+  
+  // Flutter의 setVideoSettings와 동일
+  func setVideoSettings(_ settings: [String: Any]) async {
+    guard let stream = stream else { return }
+    
+    var videoSettings = await stream.videoSettings
+    
+    if let width = settings["width"] as? Int,
+       let height = settings["height"] as? Int {
+      videoSettings.videoSize = CGSize(width: CGFloat(width), height: CGFloat(height))
+    }
+    
+    if let bitrate = settings["bitrate"] as? Int {
+      videoSettings.bitRate = bitrate
+    }
+    
+    if let frameInterval = settings["frameInterval"] as? Int {
+      videoSettings.maxKeyFrameIntervalDuration = Int32(frameInterval)
+    }
+    
+    if let profileLevelStr = settings["profileLevel"] as? String {
+      // Flutter ProfileLevel.swift와 동일한 매핑 로직
+      let profileLevel = ProfileLevel.getProfileLevelConstant(from: profileLevelStr)
+      if let profileLevel = profileLevel {
+        videoSettings.profileLevel = profileLevel
+      }
+    }
+    
+    _ = try? await stream.setVideoSettings(videoSettings)
+    print("[ExpoHaishinkit] Video settings updated: \(settings)")
+  }
+  
+  // Flutter의 setAudioSettings와 동일
+  func setAudioSettings(_ settings: [String: Any]) async {
+    guard let stream = stream else { return }
+    
+    var audioSettings = await stream.audioSettings
+    
+    if let bitrate = settings["bitrate"] as? Int {
+      audioSettings.bitRate = bitrate
+    }
+    
+    _ = try? await stream.setAudioSettings(audioSettings)
+    print("[ExpoHaishinkit] Audio settings updated: \(settings)")
+  }
+  
   
   deinit {
     // Task 취소

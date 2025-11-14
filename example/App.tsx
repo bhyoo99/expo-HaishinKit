@@ -1,4 +1,10 @@
-import { ExpoHaishinkitView, ExpoHaishinkitViewRef } from "expo-haishinkit";
+import { 
+  ExpoHaishinkitView, 
+  ExpoHaishinkitViewRef,
+  VideoSettings,
+  AudioSettings,
+  ProfileLevel
+} from "expo-haishinkit";
 import React, { useRef, useState, useEffect } from "react";
 import {
   Button,
@@ -22,6 +28,8 @@ export default function App() {
   const [connectionStatus, setConnectionStatus] = useState("");
   const [camera, setCamera] = useState<"front" | "back">("back");
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [videoSettings, setVideoSettings] = useState<VideoSettings | undefined>(undefined);
+  const [audioSettings, setAudioSettings] = useState<AudioSettings | undefined>(undefined);
 
   useEffect(() => {
     (async () => {
@@ -88,6 +96,8 @@ export default function App() {
             url={url}
             streamName={streamName}
             camera={camera}
+            videoSettings={videoSettings}
+            audioSettings={audioSettings}
             onConnectionStatusChange={(event) => {
               const status = event.nativeEvent;
               console.log("Connection status:", status);
@@ -150,6 +160,42 @@ export default function App() {
               onPress={() =>
                 setCamera((prev) => (prev === "front" ? "back" : "front"))
               }
+            />
+          </View>
+          <View style={styles.buttonRow}>
+            <Button
+              title="HD 720p"
+              onPress={() => {
+                // 720p 30fps 고화질 설정
+                setVideoSettings({
+                  width: 1280,
+                  height: 720,
+                  bitrate: 2000 * 1000, // 2Mbps
+                  frameInterval: 2, // GOP duration
+                  profileLevel: ProfileLevel.H264_High_AutoLevel
+                });
+                setAudioSettings({
+                  bitrate: 128 * 1000 // 128kbps
+                });
+                Alert.alert("Quality", "Set to HD 720p @ 2Mbps");
+              }}
+            />
+            <Button
+              title="SD 480p"
+              onPress={() => {
+                // 480p 30fps 표준 화질 설정
+                setVideoSettings({
+                  width: 854,
+                  height: 480,
+                  bitrate: 800 * 1000, // 800kbps
+                  frameInterval: 2, // GOP duration
+                  profileLevel: ProfileLevel.H264_Baseline_AutoLevel
+                });
+                setAudioSettings({
+                  bitrate: 80 * 1000 // 80kbps
+                });
+                Alert.alert("Quality", "Set to SD 480p @ 800kbps");
+              }}
             />
           </View>
           {connectionStatus ? (
