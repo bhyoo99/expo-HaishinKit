@@ -127,7 +127,7 @@ class ExpoHaishinkitView: ExpoView {
   private func setupEventListeners() {
     print("[ExpoHaishinkit] Setting up event listeners")
     
-    // Connection status - only add once in setupHaishinKit
+    // Connection status
     if let connection = connection {
       connection.addEventListener(.rtmpStatus, selector: #selector(connectionStatusHandler), observer: self)
       print("[ExpoHaishinkit] Connection event listener added")
@@ -146,20 +146,47 @@ class ExpoHaishinkitView: ExpoView {
   
   @objc
   private func connectionStatusHandler(_ notification: Notification) {
-    guard let data = notification.userInfo as? [String: Any],
-          let code = data["code"] as? String else { return }
+    guard let userInfo = notification.userInfo as? [AnyHashable: Any],
+          let event = userInfo["event"] as? Event,
+          let data = event.data as? [String: Any],
+          let code = data["code"] as? String else { 
+      print("[ExpoHaishinkit] Connection event parsing failed: \(notification.userInfo ?? [:])")
+      return 
+    }
+    
+    print("[ExpoHaishinkit] Connection event - code: \(code), level: \(data["level"] ?? ""), description: \(data["description"] ?? "")")
     
     onConnectionStatusChange([
       "code": code,
       "level": data["level"] as? String ?? "",
       "description": data["description"] as? String ?? ""
     ])
+    
+    // Flutter 방식: 연결 성공 시 자동으로 publish
+    if code == "NetConnection.Connect.Success" && !streamName.isEmpty && !isPublishing {
+      print("[ExpoHaishinkit] Auto-publishing on connection success")
+      stream?.publish(streamName)
+      isPublishing = true
+    } else if code == "NetConnection.Connect.Closed" {
+      print("[ExpoHaishinkit] Connection closed event received")
+      isPublishing = false
+    } else if code == "NetConnection.Connect.Failed" {
+      print("[ExpoHaishinkit] Connection failed: \(data["description"] ?? "")")
+      isPublishing = false
+    }
   }
   
   @objc
   private func streamStatusHandler(_ notification: Notification) {
-    guard let data = notification.userInfo as? [String: Any],
-          let code = data["code"] as? String else { return }
+    guard let userInfo = notification.userInfo as? [AnyHashable: Any],
+          let event = userInfo["event"] as? Event,
+          let data = event.data as? [String: Any],
+          let code = data["code"] as? String else {
+      print("[ExpoHaishinkit] Stream event parsing failed: \(notification.userInfo ?? [:])")
+      return 
+    }
+    
+    print("[ExpoHaishinkit] Stream event - code: \(code), level: \(data["level"] ?? ""), description: \(data["description"] ?? "")")
     
     onStreamStatusChange([
       "code": code,
@@ -176,50 +203,53 @@ class ExpoHaishinkitView: ExpoView {
       return 
     }
     
-    print("[ExpoHaishinkit] Starting publish to \(url)/\(streamName)")
+    print("[ExpoHaishinkit] startPublishing called")
+    print("[ExpoHaishinkit] URL: \(url), Stream name: \(streamName)")
+    print("[ExpoHaishinkit] Connection state: \(connection.connected)")
+    print("[ExpoHaishinkit] isPublishing: \(isPublishing)")
     
-    // Always reconnect (since we close connection on stop)
-    connection.connect(url)
-    
-    // Create new stream if needed or reuse existing
-    if stream == nil || !isPublishing {
-      stream = RTMPStream(connection: connection)
+    // 이미 연결되어 있으면 바로 publish
+    if connection.connected {
+      print("[ExpoHaishinkit] Already connected, publishing directly")
+      stream?.publish(streamName)
+      isPublishing = true
+    } else {
+      // Flutter 방식: connect만 호출, publish는 연결 성공 이벤트에서 자동으로
+      print("[ExpoHaishinkit] Calling connection.connect(\(url))")
+      connection.connect(url)
       
-      // Re-setup stream
-      if let stream = stream {
-        setupStreamEventListener()
-        attachDevices()
-        
-        // Re-attach to view
-        DispatchQueue.main.async { [weak self] in
-          self?.hkView?.attachStream(stream)
-        }
+      // 재연결 시 타이밍 문제 해결을 위해 약간의 딜레이 후 상태 확인
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+        guard let self = self else { return }
+        print("[ExpoHaishinkit] Connection state after 100ms: \(connection.connected)")
       }
     }
-    
-    // Publish the stream
-    stream?.publish(streamName)
-    isPublishing = true
   }
   
   func stopPublishing() {
-    print("[ExpoHaishinkit] Stopping publish")
+    print("[ExpoHaishinkit] stopPublishing called")
+    print("[ExpoHaishinkit] Current connection state: \(connection?.connected ?? false)")
+    print("[ExpoHaishinkit] Current isPublishing: \(isPublishing)")
     
-    // Remove event listeners before closing
-    stream?.removeEventListener(.rtmpStatus, selector: #selector(streamStatusHandler), observer: self)
-    
-    // Close and clean up stream
-    stream?.close()
-    stream = nil
-    
-    // Close connection completely
+    // Flutter와 완전히 동일하게: connection.close()만 호출
+    print("[ExpoHaishinkit] Closing connection")
     connection?.close()
+    // stream은 그대로 유지 (프리뷰 계속 보임)
     
+    // 재연결을 위해 isPublishing을 false로 설정
     isPublishing = false
+    
+    // 연결 상태 확인
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+      guard let self = self else { return }
+      print("[ExpoHaishinkit] Connection state after close: \(self.connection?.connected ?? false)")
+    }
   }
   
   deinit {
     connection?.removeEventListener(.rtmpStatus, selector: #selector(connectionStatusHandler), observer: self)
     stream?.removeEventListener(.rtmpStatus, selector: #selector(streamStatusHandler), observer: self)
+    stream?.close()
+    connection?.close()
   }
 }
