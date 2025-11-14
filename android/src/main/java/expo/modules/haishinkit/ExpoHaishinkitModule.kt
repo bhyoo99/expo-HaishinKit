@@ -2,49 +2,43 @@ package expo.modules.haishinkit
 
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
-import java.net.URL
 
 class ExpoHaishinkitModule : Module() {
-  // Each module class must implement the definition function. The definition consists of components
-  // that describes the module's functionality and behavior.
-  // See https://docs.expo.dev/modules/module-api for more details about available components.
-  override fun definition() = ModuleDefinition {
-    // Sets the name of the module that JavaScript code will use to refer to the module. Takes a string as an argument.
-    // Can be inferred from module's class name, but it's recommended to set it explicitly for clarity.
-    // The module will be accessible from `requireNativeModule('ExpoHaishinkit')` in JavaScript.
-    Name("ExpoHaishinkit")
+    override fun definition() = ModuleDefinition {
+        Name("ExpoHaishinkit")
 
-    // Defines constant property on the module.
-    Constant("PI") {
-      Math.PI
+        // View definition with props and events
+        View(ExpoHaishinkitView::class) {
+            // Props
+            Prop("url") { view: ExpoHaishinkitView, url: String ->
+                view.url = url
+            }
+
+            Prop("streamName") { view: ExpoHaishinkitView, streamName: String ->
+                view.streamName = streamName
+            }
+
+            Prop("camera") { view: ExpoHaishinkitView, camera: String ->
+                if (camera == "front" || camera == "back") {
+                    view.cameraPosition = camera
+                    view.updateCamera()
+                }
+            }
+
+            // Events
+            Events(
+                "onConnectionStatusChange",
+                "onStreamStatusChange"
+            )
+
+            // Async functions for ref methods
+            AsyncFunction("startPublishing") { view: ExpoHaishinkitView ->
+                view.startPublishing()
+            }
+
+            AsyncFunction("stopPublishing") { view: ExpoHaishinkitView ->
+                view.stopPublishing()
+            }
+        }
     }
-
-    // Defines event names that the module can send to JavaScript.
-    Events("onChange")
-
-    // Defines a JavaScript synchronous function that runs the native code on the JavaScript thread.
-    Function("hello") {
-      "Hello world! 👋"
-    }
-
-    // Defines a JavaScript function that always returns a Promise and whose native code
-    // is by default dispatched on the different thread than the JavaScript runtime runs on.
-    AsyncFunction("setValueAsync") { value: String ->
-      // Send an event to JavaScript.
-      sendEvent("onChange", mapOf(
-        "value" to value
-      ))
-    }
-
-    // Enables the module to be used as a native view. Definition components that are accepted as part of
-    // the view definition: Prop, Events.
-    View(ExpoHaishinkitView::class) {
-      // Defines a setter for the `url` prop.
-      Prop("url") { view: ExpoHaishinkitView, url: URL ->
-        view.webView.loadUrl(url.toString())
-      }
-      // Defines an event that the view can send to JavaScript.
-      Events("onLoad")
-    }
-  }
 }

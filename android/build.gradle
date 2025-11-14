@@ -36,8 +36,16 @@ android {
   defaultConfig {
     versionCode 1
     versionName "0.1.0"
+    minSdkVersion safeExtGet("minSdkVersion", 24)
   }
   lintOptions {
     abortOnError false
   }
+}
+
+dependencies {
+  implementation 'com.github.HaishinKit.HaishinKit~kt:haishinkit:0.16.0'
+  implementation 'com.github.HaishinKit.HaishinKit~kt:rtmp:0.16.0'
+  implementation 'androidx.lifecycle:lifecycle-process:2.6.2'
+  implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
 }

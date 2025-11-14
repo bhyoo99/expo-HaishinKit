@@ -1,5 +1,5 @@
 import { ExpoHaishinkitView, ExpoHaishinkitViewRef } from "expo-haishinkit";
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import {
   Button,
   ScrollView,
@@ -9,7 +9,10 @@ import {
   Platform,
   Alert,
   StyleSheet,
+  SafeAreaView,
 } from "react-native";
+import { Camera } from "expo-camera";
+import { Audio } from "expo-av";
 
 export default function App() {
   const viewRef = useRef<ExpoHaishinkitViewRef>(null);
@@ -18,6 +21,29 @@ export default function App() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState("");
   const [camera, setCamera] = useState<"front" | "back">("back");
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      // 플랫폼별 권한 요청
+      if (Platform.OS === "ios") {
+        const cameraStatus = await Camera.requestCameraPermissionsAsync();
+        const audioStatus = await Audio.requestPermissionsAsync();
+
+        setHasPermission(
+          cameraStatus.status === "granted" && audioStatus.status === "granted"
+        );
+      } else if (Platform.OS === "android") {
+        // Android는 Camera와 Audio 권한을 함께 요청
+        const cameraStatus = await Camera.requestCameraPermissionsAsync();
+        const audioStatus = await Audio.requestPermissionsAsync();
+
+        setHasPermission(
+          cameraStatus.status === "granted" && audioStatus.status === "granted"
+        );
+      }
+    })();
+  }, []);
 
   const handleStartStreaming = () => {
     viewRef.current?.startPublishing();
@@ -29,8 +55,29 @@ export default function App() {
     // ingesting state is now managed by native events
   };
 
+  // 권한이 없을 때 표시할 화면
+  if (hasPermission === null) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Text style={styles.header}>Requesting permissions...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (hasPermission === false) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Text style={styles.header}>Camera & Microphone Access Required</Text>
+        <Text style={styles.info}>
+          Please grant camera and microphone permissions in your device settings
+          to use this app.
+        </Text>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <ScrollView style={styles.container}>
         <Text style={styles.header}>RTMP Streaming Example</Text>
 
@@ -118,7 +165,7 @@ export default function App() {
           </Text>
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
