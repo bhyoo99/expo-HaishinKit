@@ -35,6 +35,10 @@ public class ExpoHaishinkitModule: Module {
         view.audioSettingsProp = settings
       }
       
+      Prop("muted") { (view: ExpoHaishinkitView, muted: Bool?) in
+        view.mutedProp = muted ?? false
+      }
+      
       Events(
         "onConnectionStatusChange",
         "onStreamStatusChange"

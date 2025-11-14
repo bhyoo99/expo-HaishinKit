@@ -1,8 +1,8 @@
 import VideoToolbox
 
 // Flutter ProfileLevel.swift와 동일한 구조
-struct ProfileLevel {
-  static func getProfileLevelConstant(from string: String) -> String? {
+public struct ProfileLevel {
+  public static func getProfileLevelConstant(from string: String) -> String? {
     switch string {
     case "H264_Baseline_1_3": return kVTProfileLevel_H264_Baseline_1_3 as String
     case "H264_Baseline_3_0": return kVTProfileLevel_H264_Baseline_3_0 as String

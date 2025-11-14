@@ -400,4 +400,10 @@ class ExpoHaishinkitView(context: Context, appContext: AppContext) : ExpoView(co
         }
     }
     
+    // 오디오 뮤트 설정
+    fun setAudioMuted(muted: Boolean) {
+        audio?.isMuted = muted
+        Log.d(TAG, "Audio muted: $muted")
+    }
+    
 }

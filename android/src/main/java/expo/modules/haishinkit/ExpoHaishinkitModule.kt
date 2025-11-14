@@ -36,6 +36,10 @@ class ExpoHaishinkitModule : Module() {
                     view.setAudioSettings(settings)
                 }
             }
+            
+            Prop("muted") { view: ExpoHaishinkitView, muted: Boolean? ->
+                view.setAudioMuted(muted ?: false)
+            }
 
             // Events
             Events(

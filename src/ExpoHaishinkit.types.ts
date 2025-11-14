@@ -78,6 +78,7 @@ export type ExpoHaishinkitViewProps = {
   camera?: CameraPosition; // 기본값: 'back'
   videoSettings?: VideoSettings;
   audioSettings?: AudioSettings;
+  muted?: boolean; // 오디오 뮤트 상태
   onConnectionStatusChange?: (event: {
     nativeEvent: ConnectionStatusPayload;
   }) => void;

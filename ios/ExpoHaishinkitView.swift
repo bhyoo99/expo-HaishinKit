@@ -49,6 +49,14 @@ class ExpoHaishinkitView: ExpoView {
     }
   }
   
+  var mutedProp: Bool = false {
+    didSet {
+      Task {
+        await setAudioMuted(mutedProp)
+      }
+    }
+  }
+  
   // Status subscriptions (Flutter와 동일한 방식)
   private var connectionStatusSubscription: Task<(), Error>?
   private var streamStatusSubscription: Task<(), Error>?
@@ -396,7 +404,7 @@ class ExpoHaishinkitView: ExpoView {
       }
     }
     
-    _ = try? await stream.setVideoSettings(videoSettings)
+    await stream.setVideoSettings(videoSettings)
     print("[ExpoHaishinkit] Video settings updated: \(settings)")
   }
   
@@ -410,8 +418,16 @@ class ExpoHaishinkitView: ExpoView {
       audioSettings.bitRate = bitrate
     }
     
-    _ = try? await stream.setAudioSettings(audioSettings)
+    await stream.setAudioSettings(audioSettings)
     print("[ExpoHaishinkit] Audio settings updated: \(settings)")
+  }
+  
+  // 오디오 뮤트 설정
+  func setAudioMuted(_ muted: Bool) async {
+    var audioMixerSettings = await mixer.audioMixerSettings
+    audioMixerSettings.isMuted = muted
+    await mixer.setAudioMixerSettings(audioMixerSettings)
+    print("[ExpoHaishinkit] Audio muted: \(muted)")
   }
   
   

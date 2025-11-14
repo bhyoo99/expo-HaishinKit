@@ -1,9 +1,9 @@
-import { 
-  ExpoHaishinkitView, 
+import {
+  ExpoHaishinkitView,
   ExpoHaishinkitViewRef,
   VideoSettings,
   AudioSettings,
-  ProfileLevel
+  ProfileLevel,
 } from "expo-haishinkit";
 import React, { useRef, useState, useEffect } from "react";
 import {
@@ -23,13 +23,20 @@ import { Audio } from "expo-av";
 export default function App() {
   const viewRef = useRef<ExpoHaishinkitViewRef>(null);
   const [url, setUrl] = useState("rtmp://a.rtmp.youtube.com/live2");
-  const [streamName, setStreamName] = useState("test");
+  const [streamName, setStreamName] = useState(
+    process.env.EXPO_PUBLIC_RTMP_KEY
+  );
   const [isStreaming, setIsStreaming] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState("");
   const [camera, setCamera] = useState<"front" | "back">("back");
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-  const [videoSettings, setVideoSettings] = useState<VideoSettings | undefined>(undefined);
-  const [audioSettings, setAudioSettings] = useState<AudioSettings | undefined>(undefined);
+  const [videoSettings, setVideoSettings] = useState<VideoSettings | undefined>(
+    undefined
+  );
+  const [audioSettings, setAudioSettings] = useState<AudioSettings | undefined>(
+    undefined
+  );
+  const [isMuted, setIsMuted] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -98,6 +105,7 @@ export default function App() {
             camera={camera}
             videoSettings={videoSettings}
             audioSettings={audioSettings}
+            muted={isMuted}
             onConnectionStatusChange={(event) => {
               const status = event.nativeEvent;
               console.log("Connection status:", status);
@@ -161,6 +169,10 @@ export default function App() {
                 setCamera((prev) => (prev === "front" ? "back" : "front"))
               }
             />
+            <Button
+              title={isMuted ? "🔇 Unmute" : "🔊 Mute"}
+              onPress={() => setIsMuted((prev) => !prev)}
+            />
           </View>
           <View style={styles.buttonRow}>
             <Button
@@ -172,10 +184,10 @@ export default function App() {
                   height: 720,
                   bitrate: 2000 * 1000, // 2Mbps
                   frameInterval: 2, // GOP duration
-                  profileLevel: ProfileLevel.H264_High_AutoLevel
+                  profileLevel: ProfileLevel.H264_High_AutoLevel,
                 });
                 setAudioSettings({
-                  bitrate: 128 * 1000 // 128kbps
+                  bitrate: 128 * 1000, // 128kbps
                 });
                 Alert.alert("Quality", "Set to HD 720p @ 2Mbps");
               }}
@@ -189,10 +201,10 @@ export default function App() {
                   height: 480,
                   bitrate: 800 * 1000, // 800kbps
                   frameInterval: 2, // GOP duration
-                  profileLevel: ProfileLevel.H264_Baseline_AutoLevel
+                  profileLevel: ProfileLevel.H264_Baseline_AutoLevel,
                 });
                 setAudioSettings({
-                  bitrate: 80 * 1000 // 80kbps
+                  bitrate: 80 * 1000, // 80kbps
                 });
                 Alert.alert("Quality", "Set to SD 480p @ 800kbps");
               }}
