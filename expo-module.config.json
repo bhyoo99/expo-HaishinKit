@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android", "web"],
+  "apple": {
+    "modules": ["ExpoHaishinkitModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.haishinkit.ExpoHaishinkitModule"]
+  }
+}
