@@ -14,7 +14,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "expo.modules.haishinkit.example"
+      "bundleIdentifier": "expo.modules.haishinkit.example",
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app uses the camera to stream video",
+        "NSMicrophoneUsageDescription": "This app uses the microphone to stream audio"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -23,7 +27,8 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "expo.modules.haishinkit.example"
+      "package": "expo.modules.haishinkit.example",
+      "permissions": ["CAMERA", "RECORD_AUDIO"]
     },
     "web": {
       "favicon": "./assets/favicon.png"

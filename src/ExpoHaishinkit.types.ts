@@ -1,19 +1,23 @@
-import type { StyleProp, ViewStyle } from 'react-native';
+import type { StyleProp, ViewStyle } from "react-native";
 
-export type OnLoadEventPayload = {
-  url: string;
+export type ConnectionStatusPayload = {
+  code: string;
+  level: string;
+  description: string;
 };
 
-export type ExpoHaishinkitModuleEvents = {
-  onChange: (params: ChangeEventPayload) => void;
-};
-
-export type ChangeEventPayload = {
-  value: string;
+export type StreamStatusPayload = {
+  code: string;
+  level: string;
+  description: string;
 };
 
 export type ExpoHaishinkitViewProps = {
-  url: string;
-  onLoad: (event: { nativeEvent: OnLoadEventPayload }) => void;
+  url?: string;
+  streamName?: string;
+  onConnectionStatusChange?: (event: {
+    nativeEvent: ConnectionStatusPayload;
+  }) => void;
+  onStreamStatusChange?: (event: { nativeEvent: StreamStatusPayload }) => void;
   style?: StyleProp<ViewStyle>;
 };
