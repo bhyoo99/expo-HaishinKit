@@ -7,7 +7,12 @@ import UIKit
 // to apply the proper styling (e.g. border radius and shadows).
 class ExpoHaishinkitView: ExpoView {
   // Flutter와 동일한 구조
-  private var mixer: MediaMixer?
+  private lazy var mixer: MediaMixer = {
+    MediaMixer(
+      multiTrackAudioMixingEnabled: false,
+      useManualCapture: true  // iOS 18 버그 회피
+    )
+  }()
   private var connection: RTMPConnection?
   private var stream: RTMPStream?
   private var texture: MTHKView?
@@ -65,12 +70,8 @@ class ExpoHaishinkitView: ExpoView {
       // 1. 오디오 세션 설정 (Flutter: audio_session 패키지)
       setupAudioSession()
       
-      // 2. MediaMixer 생성
-      mixer = MediaMixer(
-        multiTrackAudioMixingEnabled: false,
-        useManualCapture: true  // iOS 18 버그 때문에 필요
-      )
-      print("[ExpoHaishinkit] MediaMixer created")
+      // 2. MediaMixer는 lazy 생성 (첫 사용 시)
+      print("[ExpoHaishinkit] Starting setup with lazy MediaMixer")
       
       // 3. MTHKView 생성 및 설정
       await MainActor.run {
@@ -94,8 +95,8 @@ class ExpoHaishinkitView: ExpoView {
       
       // 4. MTHKView를 mixer에 추가
       if let texture = texture {
-        await mixer?.addOutput(texture)
-        print("[ExpoHaishinkit] MTHKView added to mixer")
+        await mixer.addOutput(texture)  // lazy 초기화 발생!
+        print("[ExpoHaishinkit] MTHKView added to mixer (lazy initialized)")
       }
       
       // 5. Connection과 Stream 설정 (Flutter: RtmpConnection.create() → RtmpStream.create())
@@ -107,7 +108,7 @@ class ExpoHaishinkitView: ExpoView {
       print("[ExpoHaishinkit] Devices attached")
       
       // 7. 마지막에 startRunning (useManualCapture 때문에 수동 호출 필요)
-      await mixer?.startRunning()
+      await mixer.startRunning()
       print("[ExpoHaishinkit] Mixer started running - ready!")
     }
   }
@@ -141,7 +142,7 @@ class ExpoHaishinkitView: ExpoView {
     print("[ExpoHaishinkit] RTMPStream created")
     
     // Flutter와 동일하게 mixer에 stream 추가
-    await mixer?.addOutput(stream)
+    await mixer.addOutput(stream)
     print("[ExpoHaishinkit] Stream added to mixer")
     
     setupEventListeners()
@@ -159,7 +160,7 @@ class ExpoHaishinkitView: ExpoView {
     let mirrored = self.isVideoMirrored
     
     if let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position) {
-      try? await mixer?.attachVideo(camera, track: 0) { videoUnit in
+      try? await mixer.attachVideo(camera, track: 0) { videoUnit in
         videoUnit.isVideoMirrored = mirrored
       }
       print("[ExpoHaishinkit] Camera device attached to mixer")
@@ -169,7 +170,7 @@ class ExpoHaishinkitView: ExpoView {
   private func attachAudio() async {
     let audioStatus = AVCaptureDevice.authorizationStatus(for: .audio)
     if audioStatus == .authorized, let audioDevice = AVCaptureDevice.default(for: .audio) {
-      try? await mixer?.attachAudio(audioDevice)
+      try? await mixer.attachAudio(audioDevice)
       print("[ExpoHaishinkit] Audio device attached to mixer")
     }
   }
@@ -177,7 +178,7 @@ class ExpoHaishinkitView: ExpoView {
   // camera prop이 변경될 때 호출
   func updateCamera() {
     // 초기화가 완료되지 않았으면 무시
-    guard isInitialized, mixer != nil else {
+    guard isInitialized else {
       print("[ExpoHaishinkit] Ignoring camera update - not initialized yet")
       return
     }
@@ -187,7 +188,7 @@ class ExpoHaishinkitView: ExpoView {
       let mirrored = self.isVideoMirrored // 로컬 변수로 캡처
       
       if let newCamera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position) {
-        try? await mixer?.attachVideo(newCamera, track: 0) { videoUnit in
+        try? await mixer.attachVideo(newCamera, track: 0) { videoUnit in
           // 저장된 미러링 상태 적용
           videoUnit.isVideoMirrored = mirrored
         }
@@ -206,7 +207,7 @@ class ExpoHaishinkitView: ExpoView {
       // 현재 카메라에 새로운 미러링 설정 적용
       let position: AVCaptureDevice.Position = camera == "front" ? .front : .back
       if let currentCamera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position) {
-        try? await mixer?.attachVideo(currentCamera, track: 0) { videoUnit in
+        try? await mixer.attachVideo(currentCamera, track: 0) { videoUnit in
           videoUnit.isVideoMirrored = mirrored
         }
       }
@@ -348,20 +349,21 @@ class ExpoHaishinkitView: ExpoView {
     streamStatusSubscription?.cancel()
     
     // 리소스 정리는 별도 태스크로
-    Task { [mixer, stream, connection, texture] in
+    let mixerToCleanup = mixer
+    Task { [stream, connection, texture] in
       // Flutter와 동일한 정리 순서
       _ = try? await stream?.close()
       _ = try? await connection?.close()
       
       // Mixer 정리
       if let stream = stream {
-        await mixer?.removeOutput(stream)
+        await mixerToCleanup.removeOutput(stream)
       }
       if let texture = texture {
-        await mixer?.removeOutput(texture)
+        await mixerToCleanup.removeOutput(texture)
       }
       
-      await mixer?.stopRunning()
+      await mixerToCleanup.stopRunning()
     }
   }
 }
